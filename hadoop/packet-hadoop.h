@@ -42,6 +42,34 @@ typedef struct MethodInfo
     string methodReturnType;
 } MethodInfo;
 
+typedef struct CallInfo
+{
+    uint srcPort;
+    uint destPort;
+    uint callId;
+    
+    bool operator < (const CallInfo& other) const
+    {
+        if (srcPort < other.srcPort)        
+        {
+           return true;
+        }
+        else if (srcPort == other.srcPort) 
+        {
+             if (destPort < other.destPort)
+             {
+                 return true;
+             }
+             else if (destPort == other.destPort)
+             {
+                 return callId < other.callId;
+             }
+        }
+        
+        return false;
+    }
+} CallInfo;
+
 // routines
 void proto_reg_handoff_hadoop(void);
 

@@ -44,7 +44,7 @@ static gint ett_hadoop = -1;
 
 map<string, Handles*>   g_mapHandles;
 map<string, MethodInfo> g_mapMethod;
-map<int, string>        g_mapCallId;
+map<CallInfo, string>   g_mapCallInfo;
 list<string>            g_listPBFile;   
 
 bool dissect_protobuf_repeated_field(const FieldDescriptor* field, const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *leaf, int iRepeatedIndex)
@@ -308,6 +308,11 @@ bool dissect_rpcBody(tvbuff_t *tvb, guint* offset, proto_tree *tree, string& rpc
         return false;
     }
     
+	if (0 == rpcParamLen)
+	{
+		return true;
+	}
+
     const guint8* rpcParamBuf = tvb_get_ptr(tvb, *offset, rpcParamLen);
     
     map<string, Handles*>::iterator itParam = g_mapHandles.find( rpcMethodParam );
@@ -430,7 +435,7 @@ bool dissect_reqheader(tvbuff_t *tvb, guint* offset, proto_tree *tree, string& r
     }
 }
 
-bool dissect_hadoop_rpc(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
+bool dissect_hadoop_rpc(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree, packet_info *pinfo)
 {
     bool bRequst = true;
     int  callId = 0;
@@ -450,17 +455,27 @@ bool dissect_hadoop_rpc(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
              dissect_rpcBody(tvb, offset, hadoop_tree, methodInfo.methodParamType);
          
              // add returnType for response
-             map<int, string>::iterator itCallId = g_mapCallId.find( callId );
-             if (itCallId == g_mapCallId.end())
+			 CallInfo callInfo;
+			 callInfo.callId   = callId;
+			 callInfo.srcPort  = pinfo->srcport;
+			 callInfo.destPort = pinfo->destport;
+
+             map<CallInfo, string>::iterator itCallInfo = g_mapCallInfo.find( callInfo );
+             if (itCallInfo == g_mapCallInfo.end())
              {
-                 g_mapCallId.insert( pair<int, string>( callId, methodInfo.methodReturnType ) );
+				 g_mapCallInfo.insert( pair<CallInfo, string>( callInfo, methodInfo.methodReturnType ) );
              }
         }
     } else {
-        map<int, string>::iterator itCallId = g_mapCallId.find( callId );
-        if (itCallId != g_mapCallId.end())
+		CallInfo callInfo;
+		callInfo.callId   = callId;
+		callInfo.srcPort  = pinfo->destport;
+		callInfo.destPort = pinfo->srcport;
+
+        map<CallInfo, string>::iterator itCallInfo = g_mapCallInfo.find( callInfo );
+        if (itCallInfo != g_mapCallInfo.end())
         {
-             dissect_rpcBody(tvb, offset, hadoop_tree, itCallId->second);
+             dissect_rpcBody(tvb, offset, hadoop_tree, itCallInfo->second);
         }
     }
     
@@ -517,7 +532,7 @@ static int dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
                     //offset += length;
             } else {
                 offset += 4; // length
-                dissect_hadoop_rpc(tvb, &offset, hadoop_tree);
+                dissect_hadoop_rpc(tvb, &offset, hadoop_tree, pinfo);
             } // enf of else  (auth + 4 != tvb_reported_length(tvb))
         }
     } // end of if (tree)
@@ -744,13 +759,7 @@ void register_protobuf_file(string filePath, string fileName)
 }
 
 void register_protobuf_files(string& pbFilePath)
-{
-    if (string::npos != pbFilePath.find_last_of(".") ||
-          string::npos != pbFilePath.find_last_of("..")  )
-    {
-        return;
-    }
-    
+{   
     DIR *dir;
     struct dirent *ent;
     
@@ -760,6 +769,11 @@ void register_protobuf_files(string& pbFilePath)
         string filePath;
         while ((ent = readdir (dir)) != NULL) 
         {
+			if (string(ent->d_name) == "." || string(ent->d_name) == "..")
+			{
+				continue;
+			}
+
             switch (ent->d_type) {
             case DT_REG:
                 register_protobuf_file (pbFilePath, ent->d_name);
@@ -799,7 +813,9 @@ void proto_register_hadoop(void)
         "hadoop"       /* abbrev     */
         );
 
-    string pbFilePath = get_persconffile_path("hadoop", false);
+    string pbFilePath = get_plugin_dir();
+	pbFilePath += "/hadoop-wireshark/hadoop";
+
     register_protobuf_files(pbFilePath);
     
     proto_register_subtree_array(ett, array_length(ett));
