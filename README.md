@@ -39,8 +39,8 @@ hadoop-wireshark is a open source hadoop 2.x protocol analyzer plugin with Wires
 you can download the setup file:[hadoop-wireshark(1.10.8) setup file](https://github.com/liukeyou/hadoop-wireshark/blob/master/setup/Output/setup.exe)
 
 # Change Logs
-version 0.0.6: support wireshark-1.10.8(x64) with windows vs2010
-version 0.6.0: support x86 platform
+1. version 0.0.6: support wireshark-1.10.8(x64) with windows vs2010
+1. version 0.6.0: support x86 platform
 
 # Licence
 hadoop-wireshark is published under the Apache V2.
