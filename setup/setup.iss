@@ -44,8 +44,8 @@ begin
 
   // Add item (with an empty caption)
   DirPage.Add('');
-  if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\Wireshark',
-     'InstallDir', WiresharkDir) then
+  if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Wireshark.exe',
+     'Path', WiresharkDir) then
   begin
     // Set initial value (optional)
     DirPage.Values[0] := ExpandConstant(WiresharkDir);
