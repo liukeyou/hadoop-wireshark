@@ -38,7 +38,7 @@ begin
 // Create the page
   DirPage := CreateInputDirPage(wpWelcome,
     'Select Wireshark install location', '',
-    'hadoop-wireshark files will be stored in the following folder.'#13#10#13#10 +
+    'If wireshark is PortableApps version, please select APP dir.'#13#10#13#10 +
     'To continue, click Next. If this folder is incorrect, select a different folder, click Browse.',
     False, 'New Folder');
 
