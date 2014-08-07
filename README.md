@@ -7,10 +7,11 @@ wireshark plugin for hadoop 2.x(hdfs/yarn/hbase)
 hadoop-wireshark is a open source hadoop 2.x protocol analyzer plugin with Wireshark. The hadoop rpc packet dissect according to [HadoopRpc](http://wiki.apache.org/hadoop/HadoopRpc). Some protobuf handles code copy from [protobuf-wireshark](http://code.google.com/p/protobuf-wireshark/).
 
 # Feature
-1. Hadoop(cloudera) 2.2 / 2.3 / 2.4 / 2.4.1 packet dissect including HDFS/YARN/MapReduce
-1. HBase(cloudera) 0.96.x / 0.98.x / packet dissect
-1. authentication (Plan)
+1. Hadoop(cloudera 5.x) 2.2 / 2.3 / 2.4 / 2.4.1 packet dissect including HDFS/YARN/MapReduce
+1. HBase(cloudera 5.x) 0.96.x / 0.98.x / packet dissect
+1. authentication (support Hadoop, HBase Plan)
 1. HDFS Data packet (Plan) 
+1. Spack (Plan)
 
 # Build and Run
 ## Build
@@ -39,6 +40,7 @@ hadoop-wireshark is a open source hadoop 2.x protocol analyzer plugin with Wires
 you can download the setup file:[hadoop-wireshark(1.10.8) setup file](https://github.com/liukeyou/hadoop-wireshark/blob/master/setup/Output/setup.exe?raw=true)
 
 # Change Logs
+1. version 0.7.0: support hadoop authentication & fix bug  
 1. version 0.6.0: support x86 platform
 1. version 0.0.6: support wireshark-1.10.8(x64) with windows vs2010
 
