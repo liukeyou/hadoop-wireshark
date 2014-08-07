@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "hadoop-wireshark"
-#define MyAppVersion "0.6.0"
+#define MyAppVersion "0.7.0"
 #define MyAppPublisher "liukeyou@gmail.com"
 #define MyAppURL "https://github.com/liukeyou/hadoop-wireshark"
 #define MyAppExeName "hadoop-wireshark.exe"
