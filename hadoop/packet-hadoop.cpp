@@ -42,6 +42,11 @@ using namespace google::protobuf::internal;
 static int proto_hadoop = -1;
 static gint ett_hadoop = -1;
 
+static int hf_hadoop_magic = -1;
+static int hf_hadoop_version = -1;
+static int hf_hadoop_serviceclass = -1;
+static int hf_hadoop_authprotocol = -1;
+
 map<string, Handles*>   g_mapHandles;
 map<string, MethodInfo> g_mapMethod;
 map<CallInfo, string>   g_mapCallInfo;
@@ -223,6 +228,7 @@ bool dissect_protobuf_field(const FieldDescriptor* field, const Message* message
 
 bool dissect_protobuf_message(const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bRoot)
 {
+	string fullName = message->GetDescriptor()->full_name();
     map<string, Handles*>::iterator it = g_mapHandles.find( message->GetDescriptor()->full_name() );
     if( it == g_mapHandles.end() )
     {
@@ -404,7 +410,7 @@ bool dissect_rpcheader(tvbuff_t *tvb, guint* offset, proto_tree *tree, bool* bRe
 
 bool dissect_reqheader(tvbuff_t *tvb, guint* offset, proto_tree *tree, string& rpcMethodName)
 {
-	uint32 reqHeaderLen = 0;
+    uint32 reqHeaderLen = 0;
     if (!read_varint32(tvb, offset, &reqHeaderLen))
     {
         return false;
@@ -443,6 +449,18 @@ bool dissect_hadoop_rpc(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree, p
     dissect_rpcheader(tvb, offset, hadoop_tree, &bRequst, &callId);
     if (bRequst)
     {
+		if (callId == -3) // final static int CONNECTION_CONTEXT_CALL_ID = -3;
+		{
+			dissect_rpcBody(tvb, offset, hadoop_tree, string("hadoop.common.IpcConnectionContextProto"));
+		    return true;
+		}
+		else if (callId == -33) // AuthProtocol.NONE? || AuthProtocol.SASL
+		{
+			// RpcSaslProto
+			dissect_rpcBody(tvb, offset, hadoop_tree, string("hadoop.common.RpcSaslProto"));
+		    return true;
+		}
+
         string rpcMethodName;
         dissect_reqheader(tvb, offset, hadoop_tree, rpcMethodName);
     
@@ -463,10 +481,16 @@ bool dissect_hadoop_rpc(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree, p
              map<CallInfo, string>::iterator itCallInfo = g_mapCallInfo.find( callInfo );
              if (itCallInfo == g_mapCallInfo.end())
              {
-				 g_mapCallInfo.insert( pair<CallInfo, string>( callInfo, methodInfo.methodReturnType ) );
+                 g_mapCallInfo.insert( pair<CallInfo, string>( callInfo, methodInfo.methodReturnType ) );
              }
         }
-    } else {
+    } else { // response
+		if (callId == -33) // AuthProtocol.SASL
+		{
+			dissect_rpcBody(tvb, offset, hadoop_tree, string("hadoop.common.RpcSaslProto"));
+		    return true;
+		}
+		
 		CallInfo callInfo;
 		callInfo.callId   = callId;
 		callInfo.srcPort  = pinfo->destport;
@@ -482,7 +506,57 @@ bool dissect_hadoop_rpc(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree, p
     return true;
 }
 
-static int dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
+bool dissect_hadoop_handshake(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
+{
+    proto_tree_add_item(hadoop_tree, hf_hadoop_magic, tvb, *offset, sizeof(REQUEST_STR) - 1, ENC_ASCII|ENC_NA);
+    *offset += (int)sizeof(REQUEST_STR) - 1;
+
+    proto_tree_add_item(hadoop_tree, hf_hadoop_version, tvb, *offset, 1, ENC_BIG_ENDIAN);
+    *offset += 1;
+
+    proto_tree_add_item(hadoop_tree, hf_hadoop_serviceclass, tvb, *offset, 1, ENC_BIG_ENDIAN);
+    *offset += 1;
+    
+    proto_tree_add_item(hadoop_tree, hf_hadoop_authprotocol, tvb, *offset, 1, ENC_BIG_ENDIAN);
+    *offset += 1;
+    
+    return true;
+}
+
+bool dissect_rpc_packet(tvbuff_t *tvb, guint *offset, proto_tree *hadoop_tree, string& packetName, string& displayName)
+{
+    guint len = tvb_get_ntohl(tvb, *offset);
+	*offset += 4;
+    const guint8* buf1 = tvb_get_ptr(tvb, *offset, len);
+    *offset += len;
+
+	len = tvb_get_ntohl(tvb, *offset);
+	*offset += 4;
+	
+	const guint8* buf = tvb_get_ptr(tvb, *offset, len);
+
+    map<string, Handles*>::iterator it = g_mapHandles.find( packetName );
+    if( it == g_mapHandles.end() ) 
+    {
+        return false; // bug
+    }
+    
+    DynamicMessageFactory factory;
+    Handles* handles = it->second;
+    const Message *message = NULL;
+    message = factory.GetPrototype(handles->descriptor);
+    Message *messagePacket = message->New();
+    if (messagePacket->ParseFromArray(buf, len))
+    {
+        dissect_protobuf_message(messagePacket, tvb, offset, hadoop_tree, displayName, true);
+        
+        return true;
+    }
+    
+    return false;
+}
+
+static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     guint offset  = 0;
     guint length  = 0;
@@ -505,74 +579,96 @@ static int dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
         /* first setup packet starts with "hrpc" */
         if (!tvb_memeql(tvb, offset, (const guint8 *)REQUEST_STR, sizeof(REQUEST_STR) - 1)) 
         {
-			      // TODO 
-            //proto_tree_add_item(hdfs_tree, hf_hdfs_sequenceno, tvb, offset, sizeof(REQUEST_STR) - 1, ENC_ASCII|ENC_NA);
-            offset += (int)sizeof(REQUEST_STR) - 1;
-
-            //proto_tree_add_item(hdfs_tree, hf_hdfs_pdu_type, tvb, offset, 1, ENC_BIG_ENDIAN);
-            offset += 1;
-
-            //proto_tree_add_item(hdfs_tree, hf_hdfs_flags, tvb, offset, 1, ENC_BIG_ENDIAN);
-            /*offset += 1;*/
-
+            dissect_hadoop_handshake(tvb, &offset, hadoop_tree);
         } 
         else 
         {
             /* second authentication packet */
             if (auth + 4 != tvb_reported_length(tvb)) 
-			      {
+			{
 				        // TODO ??????????????????
                     /* authentication length (read out of first 4 bytes) */
                     //length = tvb_get_ntohl(tvb, offset);
                     //proto_tree_add_item(hdfs_tree, hf_hdfs_authlen, tvb, offset, 4, ENC_ASCII|ENC_NA);
-                    //offset += 4;
+                    offset += 4;
             
                     /* authentication (length the number we just got) */
                     //proto_tree_add_item(hdfs_tree, hf_hdfs_auth, tvb, offset, length, ENC_ASCII|ENC_NA);
                     //offset += length;
-            } else {
-                offset += 4; // length
-                dissect_hadoop_rpc(tvb, &offset, hadoop_tree, pinfo);
-            } // enf of else  (auth + 4 != tvb_reported_length(tvb))
+					dissect_hadoop_rpc(tvb, &offset, hadoop_tree, pinfo);
+			    // IpcConnectionContextProto
+			    //dissect_rpc_packet (tvb, &offset, hadoop_tree, 
+                //	   string("hadoop.common.IpcConnectionContextProto"), string("IpcConnectionContextProto") );
+            }
+
+            offset += 4; // length
+            dissect_hadoop_rpc(tvb, &offset, hadoop_tree, pinfo);
         }
     } // end of if (tree)
     
-    return tvb_length(tvb);
+    //return tvb_length(tvb);
 }
 
 
-/*
+
 // determine PDU length of protocol 
 static guint get_hadoop_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset _U_)
 {
-    int len = tvb_reported_length(tvb);
+    offset  = 0;
+	int len = tvb_reported_length(tvb);
+	guint protobufLen = tvb_get_ntohl(tvb, offset);
 
-    if (tvb_reported_length(tvb) == 1448 || tvb_reported_length(tvb) == 1321) {
-        len = 150 * tvb_get_ntohs(tvb, 113) + 115 ;
+	if (!tvb_memeql(tvb, offset, (const guint8 *)REQUEST_STR, sizeof(REQUEST_STR) - 1)) 
+	{
+		/* first setup packet starts with "hrpc" */
+	}else{
+		if (protobufLen + 4 > len)
+		{
+			len = protobufLen + 4;
+		} else if (protobufLen + 4 < len){
+			offset += 4;
+			offset += protobufLen;
+			guint nextPacketLen = tvb_get_ntohl(tvb, offset);
+			if (nextPacketLen + 4 > tvb_reported_length_remaining(tvb, offset))
+			{
+				len = nextPacketLen + 4 + protobufLen + 4;
+			}
+		}
     }
 
     return len;
 
 }
 
-
 static void dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
     int frame_header_len = 0;
     gboolean need_reassemble = FALSE;
+	guint offset  = 0;
 
     frame_header_len = tvb_reported_length(tvb);
+	guint protobufLen = tvb_get_ntohl(tvb, offset);
 
-    if (frame_header_len == 1448 || frame_header_len ==  1321) {
-        need_reassemble = TRUE;
+	if (!tvb_memeql(tvb, offset, (const guint8 *)REQUEST_STR, sizeof(REQUEST_STR) - 1)) 
+	{
+		/* first setup packet starts with "hrpc" */
+	}else{
+		if (protobufLen + 4 > frame_header_len)
+		{
+			need_reassemble = TRUE;
+		} else if (protobufLen + 4 < frame_header_len){
+			offset += 4;
+			offset += protobufLen;
+			guint nextPacketLen = tvb_get_ntohl(tvb, offset);
+			if (nextPacketLen + 4 > tvb_reported_length_remaining(tvb, offset))
+			{
+				need_reassemble = TRUE;
+			}
+		}
     }
-
 
     tcp_dissect_pdus(tvb, pinfo, tree, need_reassemble, frame_header_len, get_hadoop_message_len, dissect_hadoop_message);
 }
-*/
-
-
 
 void register_protobuf_field(const FieldDescriptor* field)
 {
@@ -665,6 +761,14 @@ void register_protobuf_message(const Descriptor* message)
       return;
     }
     
+	// handle nest message
+	int iNestCount = message->nested_type_count();
+	for (int iNestIndex = 0; iNestIndex < iNestCount; iNestIndex++)
+	{
+		const Descriptor* nestMessage = message->nested_type(iNestIndex);
+		register_protobuf_message(nestMessage);
+	}
+
     Handles* handles = new Handles();
     handles->name   = message->full_name();
     handles->abbrev = message->name();
@@ -812,9 +916,41 @@ void proto_register_hadoop(void)
         "HADOOP",      /* short name */
         "hadoop"       /* abbrev     */
         );
+    static hf_register_info hf[] = {
 
+        /*************************************************
+        handshake packet
+        **************************************************/
+        { &hf_hadoop_magic,
+          { "HADOOP protocol magic", "hadoop.magic",
+            FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_hadoop_version,
+          { "HADOOP protocol version", "hadoop.version",
+            FT_UINT8, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_hadoop_serviceclass,
+          { "HADOOP ServiceClass", "hadoop.service_class",
+            FT_UINT8, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+        { &hf_hadoop_authprotocol,
+          { "HADOOP AuthProtocol", "hadoop.auth_protocol",
+            FT_UINT8, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL }
+        },
+    };
+    
+    proto_register_field_array(proto_hadoop, hf, array_length(hf));
+    
     string pbFilePath = get_plugin_dir();
-	pbFilePath += "/hadoop-wireshark/hadoop";
+    pbFilePath += "/hadoop-wireshark/hadoop";
 
     register_protobuf_files(pbFilePath);
     
@@ -822,7 +958,8 @@ void proto_register_hadoop(void)
     
     hadoop_module = prefs_register_protocol(proto_hadoop, proto_reg_handoff_hadoop);
 
-    new_register_dissector("hadoop", dissect_hadoop, proto_hadoop);
+    //new_register_dissector("hadoop", dissect_hadoop, proto_hadoop);
+	register_dissector("hadoop", dissect_hadoop, proto_hadoop);
 }
 
 void proto_reg_handoff_hadoop(void)
