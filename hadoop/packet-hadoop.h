@@ -8,39 +8,14 @@
 #ifndef PACKET_HADOOP_H
 #define PACKET_HADOOP_H
 
+#include "protobuf-handle.h"
+
 #ifdef __cplusplus
     extern "C" {
 #endif
 
-typedef struct Handles
-{
-    int    p_id;
-    string name;           
-    string abbrev;
-    
-    const Descriptor* descriptor;
-    gint * indices;
 
-    Handles() : p_id( -1 ), descriptor( NULL ), indices( NULL ) 
-    {
-        indices  = new gint;
-        *indices = -1;
-    }
-    
-    ~Handles()
-    {
-        if (indices)
-        {
-           delete indices;
-        }
-    }
-} Handles;
-
-typedef struct MethodInfo
-{
-    string methodParamType;
-    string methodReturnType;
-} MethodInfo;
+struct CallInfo;
 
 typedef struct CallInfo
 {
@@ -71,6 +46,7 @@ typedef struct CallInfo
 } CallInfo;
 
 // routines
+void proto_register_hadoop(void);
 void proto_reg_handoff_hadoop(void);
 
 #ifdef __cplusplus

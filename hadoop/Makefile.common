@@ -12,8 +12,8 @@ PLUGIN_NAME = hadoop
 
 # Non-generated sources to be scanned for registration routines
 NONGENERATED_REGISTER_CPP_FILES = \
-	packet-hadoop.cpp
-
+	packet-hadoop.cpp 
+	
 # Non-generated sources
 NONGENERATED_CPP_FILES = \
 	$(NONGENERATED_REGISTER_CPP_FILES)
