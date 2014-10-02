@@ -1,0 +1,36 @@
+# Makefile.nmake
+# nmake file for hadoop plugin common
+#
+# $Id$
+#
+PROTOBUF_DIR=E:\dev\opensource\google\protobuf-2.5.0\src
+PROTOBUF_LIB=E:\dev\opensource\google\protobuf-2.5.0\vsprojects\Release\libprotobuf.lib
+
+include ..\..\config.nmake
+include ..\..\Makefile.nmake.inc
+
+include Makefile.common
+
+CFLAGS=$(WARNINGS_ARE_ERRORS) $(STANDARD_CFLAGS) \
+	/I../.. $(GLIB_CFLAGS) \
+	/I$(PROTOBUF_DIR) \
+
+.c.obj::
+	$(CC) $(CFLAGS) -Fd.\ -c $<
+
+.cpp.obj::
+	$(CC) $(CFLAGS) -Fd.\ -c $<
+
+LDFLAGS = $(PLUGIN_LDFLAGS)
+
+CFLAGS=$(CFLAGS)
+
+OBJECTS = $(C_FILES:.c=.obj) $(CPP_FILES:.cpp=.obj)
+
+$(PLUGIN_NAME).dll $(PLUGIN_NAME).exp $(PLUGIN_NAME).lib : $(OBJECTS) $(LINK_PLUGIN_WITH)
+  link -lib /out:hadoop-common.lib $(OBJECTS)
+  
+clean:
+	rm -f $(OBJECTS) $(RESOURCE) plugin.c *.pdb *.sbr \
+	    hadoop-common.lib \
+	    $(PLUGIN_NAME).exp $(PLUGIN_NAME).rc
