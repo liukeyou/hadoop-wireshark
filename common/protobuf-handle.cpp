@@ -174,8 +174,8 @@ void register_protobuf_file(string filePath, string fileName, int proto_hadoop)
     // parse message
     for (int iMsgIndex = 0; iMsgIndex < file->message_type_count(); iMsgIndex++)
     {
-            const Descriptor* message = file->message_type(iMsgIndex);
-            register_protobuf_message(message, proto_hadoop);
+        const Descriptor* message = file->message_type(iMsgIndex);
+        register_protobuf_message(message, proto_hadoop);
     }
       
     // parse service
@@ -213,16 +213,16 @@ void register_protobuf_files(string& pbFilePath, int proto_hadoop)
 			}
 
             switch (ent->d_type) {
-            case DT_REG:
-                register_protobuf_file (pbFilePath, ent->d_name, proto_hadoop);
-                break;
-            case DT_DIR:
-                  filePath = pbFilePath + "/" + ent->d_name;
-                register_protobuf_files (filePath, proto_hadoop);
-                break;
-            case DT_LNK:
+                case DT_REG:
+                    register_protobuf_file (pbFilePath, ent->d_name, proto_hadoop);
+                    break;
+                case DT_DIR:
+                      filePath = pbFilePath + "/" + ent->d_name;
+                    register_protobuf_files (filePath, proto_hadoop);
+                    break;
+                case DT_LNK:
             default:
-                  continue;
+                continue;
             }
         }
 
@@ -310,7 +310,7 @@ bool dissect_protobuf_repeated_field(const FieldDescriptor* field, const Message
         {
             len += WireFormatLite::SInt64Size( reflection->GetRepeatedInt64( *message, field, iRepeatedIndex )  );	
         }
-      else
+        else
         {
             len += WireFormatLite::Int64Size( reflection->GetRepeatedInt64( *message, field, iRepeatedIndex )  );	
         }
@@ -486,4 +486,68 @@ bool read_varint32(tvbuff_t *tvb, guint* offset, uint32* value)
     }
     
     return bRet; 
+}
+
+bool protobuf_get_message(const string msgName, tvbuff_t *tvb, guint* offset, bool bVarintLen, guint16 lenByte, Message **messagePacket)
+{
+    // get message handles
+    map<string, Handles*>::iterator it = g_mapHandles.find( msgName );
+    if( it == g_mapHandles.end() ) 
+    {
+        return false; // bug
+    }
+    DynamicMessageFactory factory;
+    Handles* handles = it->second;
+    
+    // get message len
+    guint len = 0;
+    if (bVarintLen)
+    {
+        if (!read_varint32(tvb, offset, &len)) 
+        {
+            return false;
+        }
+    } else {
+        if (lenByte == 4)
+        {
+            len = tvb_get_ntohl(tvb, *offset);
+	        *offset += 4;
+	    } else {
+	        len = tvb_get_ntohs(tvb, *offset);
+	        *offset += 2;
+	    }
+    }
+    // get message buffer
+    const guint8* buf = tvb_get_ptr(tvb, *offset, len);
+    
+    const Message *message = NULL;
+    message = factory.GetPrototype(handles->descriptor);
+    *messagePacket = message->New();
+    
+    return (*messagePacket)->ParseFromArray(buf, len));  
+}
+
+bool dissect_protobuf_by_name(const string msgName, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bVarintLen, guint16 lenByte)
+{
+    const Message *messagePacket = NULL;
+    if( protobuf_get_message(msgName, tvb, bVarintLen, lenByte, &messagePacket) )
+    {
+        return dissect_protobuf_message(messagePacket, tvb, offset, tree, displayText, true);
+    }
+    
+    return false;
+}
+
+uint64 get_field_UInt64(const string& msgName, const string& fileName, tvbuff_t *tvb, guint* offset, bool bVarintLen, guint16 lenByte)
+{
+    guint oldOffset = *offset;
+    
+    const Message *messagePacket = NULL;
+    if( protobuf_get_message(msgName, tvb, bVarintLen, lenByte, &messagePacket) )
+    {
+        //messagePacket->
+    }
+    
+    *offset = oldOffset;
+    return false;
 }

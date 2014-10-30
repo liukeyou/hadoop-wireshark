@@ -39,6 +39,7 @@ void register_protobuf_field(const FieldDescriptor* field, int proto_hadoop);
 void register_protobuf_message(const Descriptor* message, int proto_hadoop);
 void register_protobuf_file(string filePath, string fileName, int proto_hadoop);
 void register_protobuf_files(string& pbFilePath, int proto_hadoop);
+bool dissect_protobuf_by_name(const string msgName, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bVarintLen, guint16 lenByte);
 bool dissect_protobuf_repeated_field(const FieldDescriptor* field, const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *leaf, int iRepeatedIndex);
 bool dissect_protobuf_field(const FieldDescriptor* field, const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *leaf);
 bool dissect_protobuf_message(const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bRoot);

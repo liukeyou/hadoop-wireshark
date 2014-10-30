@@ -16,11 +16,14 @@ static int hf_hadoop_version = -1;
 static int hf_hadoop_serviceclass = -1;
 static int hf_hadoop_authprotocol = -1;
 
-map<CallInfo, string>          g_mapCallInfo;
-extern map<string, Handles*>   g_mapHandles;
-extern map<string, MethodInfo> g_mapMethod;
+extern map<string, Handles*>    g_mapHandles;
+extern map<string, MethodInfo>  g_mapMethod;
+map<CallInfo, string>           g_mapCallInfo;
+map<unsigned int, unsigned int> g_mapSeqNumber;
 
-bool dissect_xceiver_op(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
+
+
+bool dissect_xceiver_op(tvbuff_t *tvb, packet_info *pinfo, guint* offset, proto_tree *hadoop_tree)
 {
     guint16 version = tvb_get_ntohs(tvb, *offset);
     *offset += 2;
@@ -42,6 +45,22 @@ bool dissect_xceiver_op(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
     {
         case 80: //WRITE_BLOCK
              opclass += "OpWriteBlockProto";
+             if ( pinfo->private_data != NULL)
+        	 {
+        		 tcpinfo *ti = (tcpinfo *)(pinfo->private_data); 
+        		 ti->seq;
+        		 ti->nxtseq;
+        		
+        		 map<unsigned int, unsigned int>::iterator itSeqNumber = g_mapSeqNumber.find( ti->seq );
+                 if (itSeqNumber == g_mapSeqNumber.end())
+                 {
+                     g_mapSeqNumber.insert( pair<unsigned int, unsigned int>( ti->seq, ti->nxtseq) );
+                 }
+                 else
+                 {
+                    g_mapSeqNumber[ti->seq] = ti->nxtseq;
+                 }
+        	 }
         break;
         case 81: //READ_BLOCK
              opclass += "OpReadBlockProto";
@@ -120,7 +139,7 @@ static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         guint16 version = tvb_get_ntohs(tvb, offset);
         if (28 == version)
         {
-            if(dissect_xceiver_op(tvb, &offset, hadoop_tree))
+            if(dissect_xceiver_op(tvb, pinfo, &offset, hadoop_tree))
             {
                 return;    
             }
@@ -195,6 +214,7 @@ static void dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     frame_header_len = tvb_reported_length(tvb);
     guint protobufLen = tvb_get_ntohl(tvb, offset);
 
+	
 /*
     if (!tvb_memeql(tvb, offset, (const guint8 *)REQUEST_STR, sizeof(REQUEST_STR) - 1)) 
     {
