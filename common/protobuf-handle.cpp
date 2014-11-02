@@ -406,6 +406,7 @@ bool dissect_protobuf_field(const FieldDescriptor* field, const Message* message
     };
 
     *offset += len;
+    return true;
 }
 
 bool dissect_protobuf_message(const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bRoot)
@@ -517,6 +518,11 @@ bool protobuf_get_message(const string msgName, tvbuff_t *tvb, guint* offset, bo
 	        *offset += 2;
 	    }
     }
+    
+    if (len > tvb_reported_length(tvb))
+    {
+        return false;
+    }
     // get message buffer
     const guint8* buf = tvb_get_ptr(tvb, *offset, len);
     
@@ -524,30 +530,45 @@ bool protobuf_get_message(const string msgName, tvbuff_t *tvb, guint* offset, bo
     message = factory.GetPrototype(handles->descriptor);
     *messagePacket = message->New();
     
-    return (*messagePacket)->ParseFromArray(buf, len));  
+    return (*messagePacket)->ParseFromArray(buf, len);  
 }
 
 bool dissect_protobuf_by_name(const string msgName, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bVarintLen, guint16 lenByte)
 {
-    const Message *messagePacket = NULL;
-    if( protobuf_get_message(msgName, tvb, bVarintLen, lenByte, &messagePacket) )
+    guint oldOffset = *offset;
+    
+    Message *messagePacket = NULL;
+    if( protobuf_get_message(msgName, tvb, offset, bVarintLen, lenByte, &messagePacket) )
     {
         return dissect_protobuf_message(messagePacket, tvb, offset, tree, displayText, true);
     }
     
+    *offset = oldOffset;
     return false;
 }
 
-uint64 get_field_UInt64(const string& msgName, const string& fileName, tvbuff_t *tvb, guint* offset, bool bVarintLen, guint16 lenByte)
-{
-    guint oldOffset = *offset;
-    
-    const Message *messagePacket = NULL;
-    if( protobuf_get_message(msgName, tvb, bVarintLen, lenByte, &messagePacket) )
+uint64 get_field_UInt64(const string& msgName, const string& fieldName, tvbuff_t *tvb, guint offset, bool bVarintLen, guint16 lenByte)
+{   
+    Message *messagePacket = NULL;
+    if( protobuf_get_message(msgName, tvb, &offset, bVarintLen, lenByte, &messagePacket) )
     {
-        //messagePacket->
+        const Reflection *reflection = messagePacket->GetReflection();
+        vector<const FieldDescriptor*> fieldList;
+        reflection->ListFields(*messagePacket, &fieldList);
+        for( vector<const FieldDescriptor*>::iterator itField = fieldList.begin(); itField!=fieldList.end(); itField++ )
+        {
+            const FieldDescriptor* field = *itField;
+            bool bMessage = ( FieldDescriptor::CPPTYPE_MESSAGE == field->cpp_type() );
+                
+            if (!bMessage)
+            {
+                if (field->name().compare(fieldName))
+                {
+                    return reflection->GetUInt64( *messagePacket, field );
+                }
+            }
+        }
     }
     
-    *offset = oldOffset;
-    return false;
+    return 0;
 }
