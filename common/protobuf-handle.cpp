@@ -411,8 +411,15 @@ bool dissect_protobuf_field(const FieldDescriptor* field, const Message* message
 
 bool dissect_protobuf_message(const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bRoot)
 {
-	string fullName = message->GetDescriptor()->full_name();
-    map<string, Handles*>::iterator it = g_mapHandles.find( message->GetDescriptor()->full_name() );
+	string fullName;
+	try{
+		fullName = message->GetDescriptor()->full_name();
+	}catch(...)
+	{
+		return false;
+	}
+
+	map<string, Handles*>::iterator it = g_mapHandles.find( message->GetDescriptor()->full_name() );
     if( it == g_mapHandles.end() )
     {
         return false; // bug
