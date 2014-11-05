@@ -44,7 +44,7 @@ bool dissect_protobuf_repeated_field(const FieldDescriptor* field, const Message
 bool dissect_protobuf_field(const FieldDescriptor* field, const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *leaf);
 bool dissect_protobuf_message(const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bRoot);
 bool read_varint32(tvbuff_t *tvb, guint* offset, uint32* value);
-uint64 get_field_UInt64(const string& msgName, const string& fieldName, tvbuff_t *tvb, guint offset, bool bVarintLen, guint16 lenByte);
+int32 get_field_Int32(const string& msgName, const string& fieldName, tvbuff_t *tvb, guint offset, bool bVarintLen, guint16 lenByte);
 
 typedef struct Handles
 {

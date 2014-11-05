@@ -411,14 +411,6 @@ bool dissect_protobuf_field(const FieldDescriptor* field, const Message* message
 
 bool dissect_protobuf_message(const Message* message, tvbuff_t *tvb, guint* offset, proto_tree *tree, string& displayText, bool bRoot)
 {
-	string fullName;
-	try{
-		fullName = message->GetDescriptor()->full_name();
-	}catch(...)
-	{
-		return false;
-	}
-
 	map<string, Handles*>::iterator it = g_mapHandles.find( message->GetDescriptor()->full_name() );
     if( it == g_mapHandles.end() )
     {
@@ -504,7 +496,7 @@ bool protobuf_get_message(const string msgName, tvbuff_t *tvb, guint* offset, bo
     {
         return false; // bug
     }
-    DynamicMessageFactory factory;
+    
     Handles* handles = it->second;
     
     // get message len
@@ -533,8 +525,9 @@ bool protobuf_get_message(const string msgName, tvbuff_t *tvb, guint* offset, bo
     // get message buffer
     const guint8* buf = tvb_get_ptr(tvb, *offset, len);
     
+    DynamicMessageFactory *factory = new DynamicMessageFactory();
     const Message *message = NULL;
-    message = factory.GetPrototype(handles->descriptor);
+    message = factory->GetPrototype(handles->descriptor);
     *messagePacket = message->New();
     
     return (*messagePacket)->ParseFromArray(buf, len);  
@@ -554,7 +547,7 @@ bool dissect_protobuf_by_name(const string msgName, tvbuff_t *tvb, guint* offset
     return false;
 }
 
-uint64 get_field_UInt64(const string& msgName, const string& fieldName, tvbuff_t *tvb, guint offset, bool bVarintLen, guint16 lenByte)
+int32 get_field_Int32(const string& msgName, const string& fieldName, tvbuff_t *tvb, guint offset, bool bVarintLen, guint16 lenByte)
 {   
     Message *messagePacket = NULL;
     if( protobuf_get_message(msgName, tvb, &offset, bVarintLen, lenByte, &messagePacket) )
@@ -569,9 +562,9 @@ uint64 get_field_UInt64(const string& msgName, const string& fieldName, tvbuff_t
                 
             if (!bMessage)
             {
-                if (field->name().compare(fieldName))
+                if (0 == field->name().compare(fieldName))
                 {
-                    return reflection->GetUInt64( *messagePacket, field );
+                    return reflection->GetInt32( *messagePacket, field );
                 }
             }
         }

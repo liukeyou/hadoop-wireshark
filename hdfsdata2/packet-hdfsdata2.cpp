@@ -11,10 +11,10 @@
 static int proto_hadoop = -1;
 static gint ett_hadoop = -1;
 
-static int hf_hadoop_magic = -1;
-static int hf_hadoop_version = -1;
-static int hf_hadoop_serviceclass = -1;
-static int hf_hadoop_authprotocol = -1;
+static int hf_checksums = -1;
+static int hf_checksum = -1;
+static int hf_data = -1;
+static int hf_chunk = -1;
 
 extern map<string, Handles*>    g_mapHandles;
 extern map<string, MethodInfo>  g_mapMethod;
@@ -94,8 +94,8 @@ bool dissect_xceiver_op(tvbuff_t *tvb, packet_info *pinfo, guint* offset, proto_
 
 bool dissect_write_block(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
 {
-    // get packet lentch
-    guint packetLen = tvb_get_ntohl(tvb, *offset);
+    // get payload lentch
+    guint payloadLen = tvb_get_ntohl(tvb, *offset);
     *offset += 4;
     
     // get hearder lentch
@@ -106,12 +106,31 @@ bool dissect_write_block(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
         return false;
     }
     
-    if ( tvb_reported_length(tvb) != packetLen + hearderLen + 2 )
+    if ( tvb_reported_length(tvb) != payloadLen + hearderLen + 2 )
     {
-        
-        // TODO
         return false;
-    }    
+    }
+    
+    int dataPlusChecksumLen = payloadLen - 2; //2 = Ints.BYTES;
+    int32 dataLen = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
+    int32 checksumLen = dataPlusChecksumLen - dataLen;
+    
+    proto_item* itemChecksum = proto_tree_add_none_format( hadoop_tree, hf_checksums, tvb, *offset, checksumLen, "%s", "checksums" );
+    proto_tree* subTreeChecksum = proto_item_add_subtree( itemChecksum, ett_hadoop );
+    for (int32 i=0; i<checksumLen/4; i++)
+    {
+        proto_tree_add_uint( subTreeChecksum, hf_checksum, tvb, *offset, 4,  tvb_get_ntohl(tvb, *offset));
+        *offset += 4;
+    }
+    
+    //*offset =     
+    proto_item* itemData = proto_tree_add_none_format( hadoop_tree, hf_data, tvb, *offset, dataLen, "%s", "data" );
+    proto_tree* subTreeData = proto_item_add_subtree( itemData, ett_hadoop );     
+    for (int32 i=0; i<checksumLen/512; i++)
+    {
+        proto_tree_add_item( subTreeData, hf_chunk, tvb, *offset, 512, true);
+        *offset += 512;
+    }
 }
 
 static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
@@ -147,7 +166,7 @@ static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         // maby write block
         if (length >= 31)
         {
-            guint dataLen = tvb_get_ntohl(tvb, offset);
+            guint dataLen = tvb_get_ntohl(tvb, 0);
             if (dataLen < length)
             {
                 if(dissect_write_block(tvb, &offset, hadoop_tree))
@@ -179,7 +198,6 @@ static guint get_hadoop_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int o
     // maybe data
     if (packetLen >= 31)
     {
-        guint dataLen = tvb_get_ntohl(tvb, offset);
         if ( pinfo->private_data != NULL)
         {
             tcpinfo *ti = (tcpinfo *)(pinfo->private_data);
@@ -189,13 +207,16 @@ static guint get_hadoop_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int o
 			dp.destPort = pinfo->destport;
 			dp.nxtseq   = ti->seq;
 			
-			/*
 			if ( g_listDataPacket.end() != find(g_listDataPacket.begin(), g_listDataPacket.end(), dp ) )
 			{
-				uint64 len = get_field_UInt64("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
-				return len;
+				//int32 len = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
+				guint dataLen = tvb_get_ntohl(tvb, 0);
+			    guint16 hearderLen = tvb_get_ntohs(tvb, 4);
+			    if ( dataLen+hearderLen+2 > packetLen )
+			    {
+			        return dataLen+hearderLen+2;
+			    }
 			}
-			*/
 		}
     }
 
@@ -204,17 +225,15 @@ static guint get_hadoop_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int o
 
 static void dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-    int frame_header_len = 0;
+    int packetLen = 0;
     gboolean need_reassemble = FALSE;
     guint offset  = 0;
 
-    frame_header_len = tvb_reported_length(tvb);
-    guint protobufLen = tvb_get_ntohl(tvb, offset);
-
+    packetLen = tvb_reported_length(tvb);
+    
 	// maybe data
-    if (frame_header_len >= 31)
+    if (packetLen >= 31)
     {
-        guint dataLen = tvb_get_ntohl(tvb, offset);
         if ( pinfo->private_data != NULL)
         {
             tcpinfo *ti = (tcpinfo *)(pinfo->private_data);
@@ -227,17 +246,23 @@ static void dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			if ( g_listDataPacket.end() != find(g_listDataPacket.begin(), g_listDataPacket.end(), dp ) )
 			{
 				/*
-				uint64 len = get_field_UInt64("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
+				int32 len = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
 				if (len > frame_header_len)
 				{
 					need_reassemble = true;
 				}
 				*/
+				guint dataLen = tvb_get_ntohl(tvb, 0);
+			    guint16 hearderLen = tvb_get_ntohs(tvb, 4);
+			    if ( dataLen+hearderLen+2 > packetLen )
+			    {
+			        need_reassemble = true;
+			    }	
 			}
 		}
     }
 
-    tcp_dissect_pdus(tvb, pinfo, tree, need_reassemble, frame_header_len, get_hadoop_message_len, dissect_hadoop_message);
+    tcp_dissect_pdus(tvb, pinfo, tree, need_reassemble, packetLen, get_hadoop_message_len, dissect_hadoop_message);
 }
 
 void proto_register_hadoop(void)
@@ -259,27 +284,27 @@ void proto_register_hadoop(void)
         /*************************************************
         handshake packet
         **************************************************/
-        { &hf_hadoop_magic,
-          { "HADOOP protocol magic", "hadoop.magic",
-            FT_STRING, BASE_NONE,
+        { &hf_checksums,
+          { "HDFS Checksums", "hdfs.checksums",
+            FT_NONE, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL }
         },
-        { &hf_hadoop_version,
-          { "HADOOP protocol version", "hadoop.version",
-            FT_UINT8, BASE_DEC,
+        { &hf_data,
+          { "HDFS DATA", "hdfs.data",
+            FT_NONE, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL }
         },
-        { &hf_hadoop_serviceclass,
-          { "HADOOP ServiceClass", "hadoop.service_class",
-            FT_UINT8, BASE_DEC,
+        { &hf_checksum,
+          { "HDFS checksum", "hdfs.checksum",
+            FT_UINT32, BASE_HEX,
             NULL, 0x0,
             NULL, HFILL }
         },
-        { &hf_hadoop_authprotocol,
-          { "HADOOP AuthProtocol", "hadoop.auth_protocol",
-            FT_UINT8, BASE_DEC,
+        { &hf_chunk,
+          { "HDFS chunk", "hdfs.chunk",
+            FT_NONE, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL }
         },
