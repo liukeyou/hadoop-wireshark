@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "hadoop-wireshark"
-#define MyAppVersion "0.7.0"
+#define MyAppVersion "0.8.0"
 #define MyAppPublisher "liukeyou@gmail.com"
 #define MyAppURL "https://github.com/liukeyou/hadoop-wireshark"
 #define MyAppExeName "hadoop-wireshark.exe"
@@ -21,7 +21,7 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 CreateAppDir=no
 LicenseFile=E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\LICENSE
-OutputBaseFilename=setup
+OutputBaseFilename=hadoop-wireshark
 Compression=lzma
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
@@ -68,9 +68,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x64\hadoop.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: Is64BitInstallMode; Flags: ignoreversion
-Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x64\hbase.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: Is64BitInstallMode; Flags: ignoreversion; AfterInstall: AfterMyProgInstall();
+Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x64\hbase.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: Is64BitInstallMode; Flags: ignoreversion
+Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x64\hdfsdata2.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: Is64BitInstallMode; Flags: ignoreversion; AfterInstall: AfterMyProgInstall();
 Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x86\hadoop.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: not Is64BitInstallMode; Flags: solidbreak ignoreversion 
-Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x86\hbase.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: not Is64BitInstallMode; Flags: ignoreversion; AfterInstall: AfterMyProgInstall();
+Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x86\hbase.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: not Is64BitInstallMode; Flags: ignoreversion 
+Source: "E:\dev\opensource\wireshark-hadoop\hadoop-wireshark\setup\x86\hdfsdata2.dll"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8"; Check: not Is64BitInstallMode; Flags: ignoreversion; AfterInstall: AfterMyProgInstall();
 Source: "E:\dev\opensource\wireshark\wireshark-1.10.8\wireshark-gtk2\plugins\1.10.8\hadoop-wireshark\*"; DestDir: "{code:GetWiresharkDir}\plugins\1.10.8\hadoop-wireshark"; Flags: solidbreak ignoreversion recursesubdirs createallsubdirs; 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 

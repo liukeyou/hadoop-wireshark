@@ -43,7 +43,7 @@ bool dissect_xceiver_op(tvbuff_t *tvb, packet_info *pinfo, guint* offset, proto_
     {
         case 80: //WRITE_BLOCK
              opclass += "OpWriteBlockProto";
-             if ( pinfo->private_data != NULL)
+            /*if ( pinfo->private_data != NULL)
         	 {
         		 tcpinfo *ti = (tcpinfo *)(pinfo->private_data); 
         		 
@@ -56,7 +56,7 @@ bool dissect_xceiver_op(tvbuff_t *tvb, packet_info *pinfo, guint* offset, proto_
                  {
 					 g_listDataPacket.push_back(dp);
                  }
-        	 }
+        	 }*/
         break;
         case 81: //READ_BLOCK
              opclass += "OpReadBlockProto";
@@ -92,7 +92,7 @@ bool dissect_xceiver_op(tvbuff_t *tvb, packet_info *pinfo, guint* offset, proto_
     return dissect_protobuf_by_name(opclass, tvb, offset, hadoop_tree, opclass, true, 4);
 }
 
-bool dissect_write_block(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
+bool dissect_data_packet(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
 {
     // get payload lentch
     guint payloadLen = tvb_get_ntohl(tvb, *offset);
@@ -106,18 +106,21 @@ bool dissect_write_block(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
         return false;
     }
     
-    if ( tvb_reported_length(tvb) != payloadLen + hearderLen + 2 )
+	guint packetLen = tvb_reported_length(tvb);
+    if ( packetLen != payloadLen + hearderLen + 2 )
     {
         return false;
     }
     
-    int dataPlusChecksumLen = payloadLen - 2; //2 = Ints.BYTES;
+    int dataPlusChecksumLen = payloadLen - 4; //4 = Ints.BYTES;
     int32 dataLen = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
     int32 checksumLen = dataPlusChecksumLen - dataLen;
-    
+	int32 chunkSize = 512;
+    int32 chunkNum = (dataLen + chunkSize -1) / chunkSize;
+
     proto_item* itemChecksum = proto_tree_add_none_format( hadoop_tree, hf_checksums, tvb, *offset, checksumLen, "%s", "checksums" );
     proto_tree* subTreeChecksum = proto_item_add_subtree( itemChecksum, ett_hadoop );
-    for (int32 i=0; i<checksumLen/4; i++)
+    for (int32 i=0; i<chunkNum; i++)
     {
         proto_tree_add_uint( subTreeChecksum, hf_checksum, tvb, *offset, 4,  tvb_get_ntohl(tvb, *offset));
         *offset += 4;
@@ -125,12 +128,23 @@ bool dissect_write_block(tvbuff_t *tvb, guint* offset, proto_tree *hadoop_tree)
     
     //*offset =     
     proto_item* itemData = proto_tree_add_none_format( hadoop_tree, hf_data, tvb, *offset, dataLen, "%s", "data" );
-    proto_tree* subTreeData = proto_item_add_subtree( itemData, ett_hadoop );     
-    for (int32 i=0; i<checksumLen/512; i++)
+    proto_tree* subTreeData = proto_item_add_subtree( itemData, ett_hadoop );
+    for (int32 i=0; i<chunkNum; i++)
     {
-        proto_tree_add_item( subTreeData, hf_chunk, tvb, *offset, 512, true);
-        *offset += 512;
+		int32 chunkLen = 0;
+		if (*offset + chunkSize <= packetLen)
+		{
+            chunkLen = chunkSize;
+		}
+		else
+		{
+			chunkLen = packetLen - *offset;
+		}
+
+		proto_tree_add_item( subTreeData, hf_chunk, tvb, *offset, chunkLen, true);
+        *offset += chunkSize;
     }
+	
 }
 
 static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
@@ -152,7 +166,7 @@ static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         
         length = tvb_reported_length(tvb);
             
-        // maby xceiver op            
+        // maybe xceiver op            
         guint16 version = tvb_get_ntohs(tvb, offset);
         if (28 == version)
         {
@@ -163,13 +177,13 @@ static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         }
         offset = 0;
         
-        // maby write block
+        // maybe write block
         if (length >= 31)
         {
             guint dataLen = tvb_get_ntohl(tvb, 0);
             if (dataLen < length)
             {
-                if(dissect_write_block(tvb, &offset, hadoop_tree))
+                if(dissect_data_packet(tvb, &offset, hadoop_tree))
                 {
                     return;    
                 }
@@ -177,14 +191,34 @@ static void dissect_hadoop_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         }
         offset = 0;
         
-        // maby BlockOpResponseProto
+        // maybe BlockOpResponseProto
         if ( dissect_protobuf_by_name("hadoop.hdfs.BlockOpResponseProto", tvb, &offset, hadoop_tree, string("hadoop.hdfs.BlockOpResponseProto"), true, 4) )
         {
             return;
         }
-        
-        
-        
+        offset = 0;
+
+        // maybe PipelineAckProto
+        if ( dissect_protobuf_by_name("hadoop.hdfs.PipelineAckProto", tvb, &offset, hadoop_tree, string("hadoop.hdfs.PipelineAckProto"), true, 4) )
+        {
+            return;
+        }
+		offset = 0;
+
+		// maybe ClientReadStatusProto
+        if ( dissect_protobuf_by_name("hadoop.hdfs.ClientReadStatusProto", tvb, &offset, hadoop_tree, string("hadoop.hdfs.ClientReadStatusProto"), true, 4) )
+        {
+            return;
+        }
+		offset = 0;
+
+		// maybe DNTransferAckProto
+        if ( dissect_protobuf_by_name("hadoop.hdfs.DNTransferAckProto", tvb, &offset, hadoop_tree, string("hadoop.hdfs.DNTransferAckProto"), true, 4) )
+        {
+            return;
+        }
+        offset = 0;
+
     } // end of if (tree)
 
 }
@@ -198,6 +232,21 @@ static guint get_hadoop_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int o
     // maybe data
     if (packetLen >= 31)
     {
+		guint payloadLen = tvb_get_ntohl(tvb, 0);
+	    guint16 hearderLen = tvb_get_ntohs(tvb, 4);
+
+		if (hearderLen == 25)
+		{
+			int32 dataLen = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
+			int32 chunkSize = 512;
+			int32 checksumLen = (dataLen + chunkSize -1) / chunkSize * 4;
+			if ( (payloadLen == (dataLen + checksumLen + 4)) && ((payloadLen + hearderLen + 2) > packetLen) )
+			{
+				return payloadLen + hearderLen + 2;
+			}
+		}
+		
+		/*
         if ( pinfo->private_data != NULL)
         {
             tcpinfo *ti = (tcpinfo *)(pinfo->private_data);
@@ -217,7 +266,8 @@ static guint get_hadoop_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int o
 			        return dataLen+hearderLen+2;
 			    }
 			}
-		}
+		}*/
+
     }
 
     return tvb_reported_length(tvb);
@@ -234,6 +284,21 @@ static void dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	// maybe data
     if (packetLen >= 31)
     {
+		guint payloadLen = tvb_get_ntohl(tvb, 0);
+	    guint16 hearderLen = tvb_get_ntohs(tvb, 4);
+
+		if (hearderLen == 25)
+		{
+			int32 dataLen = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);\
+			int32 chunkSize = 512;
+			int32 checksumLen = (dataLen + chunkSize -1) / chunkSize * 4;
+			if ( (payloadLen == (dataLen + checksumLen + 4)) && ((payloadLen + hearderLen + 2) > packetLen) )
+			{
+				need_reassemble = true;
+			}
+		}
+
+		/*
         if ( pinfo->private_data != NULL)
         {
             tcpinfo *ti = (tcpinfo *)(pinfo->private_data);
@@ -245,13 +310,13 @@ static void dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			
 			if ( g_listDataPacket.end() != find(g_listDataPacket.begin(), g_listDataPacket.end(), dp ) )
 			{
-				/*
-				int32 len = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
-				if (len > frame_header_len)
-				{
-					need_reassemble = true;
-				}
-				*/
+				
+				//int32 len = get_field_Int32("hadoop.hdfs.PacketHeaderProto", "dataLen", tvb, 4, false, 2);
+				//if (len > frame_header_len)
+				//{
+				//	need_reassemble = true;
+				//}
+				
 				guint dataLen = tvb_get_ntohl(tvb, 0);
 			    guint16 hearderLen = tvb_get_ntohs(tvb, 4);
 			    if ( dataLen+hearderLen+2 > packetLen )
@@ -259,7 +324,7 @@ static void dissect_hadoop(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			        need_reassemble = true;
 			    }	
 			}
-		}
+		}*/
     }
 
     tcp_dissect_pdus(tvb, pinfo, tree, need_reassemble, packetLen, get_hadoop_message_len, dissect_hadoop_message);
