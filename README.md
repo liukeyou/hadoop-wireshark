@@ -37,12 +37,17 @@ hadoop-wireshark is a open source hadoop 2.x protocol analyzer plugin with Wires
 ![dissect](https://github.com/liukeyou/hadoop-wireshark/blob/master/doc/hbasedecode.PNG)
 
 ## setup
-you can download the setup file:[hadoop-wireshark(1.10.8) setup file](https://github.com/liukeyou/hadoop-wireshark/blob/master/setup/Output/setup.exe?raw=true)
+you can download the setup file:[hadoop-wireshark(1.10.8) setup file](https://github.com/liukeyou/hadoop-wireshark/blob/master/setup/Output/hadoop-wireshark.exe?raw=true)
 
 # Change Logs
+1. version 0.8.0: support hdfsdata2 & fix bug 
 1. version 0.7.0: support hadoop authentication & fix bug  
 1. version 0.6.0: support x86 platform
 1. version 0.0.6: support wireshark-1.10.8(x64) with windows vs2010
+
+#Known Issues
+1. not support hdfs DataTransferEncryptorMessageProto
+2. not support TaskUmbilicalProtocol （the use WritableRpcEngine, not use ProtobufRpcEngine） 
 
 # Licence
 hadoop-wireshark is published under the Apache V2.
