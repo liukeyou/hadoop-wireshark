@@ -55,5 +55,4 @@ you can download the setup file:[hadoop-wireshark(1.10.8) setup file](https://gi
 hadoop-wireshark is published under the Apache V2.
 
 # Contact
-Email: liukeyou@gmail.com
-Weibo: [云计算技术](http://weibo.com/324426767)
+www.Xdrv.com
