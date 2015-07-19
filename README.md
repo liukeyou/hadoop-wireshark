@@ -10,7 +10,7 @@ hadoop-wireshark is a open source hadoop 2.x protocol analyzer plugin with Wires
 1. Hadoop(cloudera 5.x) 2.2 / 2.3 / 2.4 / 2.4.1 packet dissect including HDFS/YARN/MapReduce
 1. HBase(cloudera 5.x) 0.96.x / 0.98.x / packet dissect
 1. authentication (support Hadoop, HBase Plan)
-1. HDFS Data packet (Plan) 
+1. HDFS Data packet (support) 
 1. Spack (Plan)
 
 # Build and Run
@@ -35,6 +35,8 @@ hadoop-wireshark is a open source hadoop 2.x protocol analyzer plugin with Wires
 ![dissect](https://github.com/liukeyou/hadoop-wireshark/blob/master/doc/dissect.PNG)
 1. Select HBASE
 ![dissect](https://github.com/liukeyou/hadoop-wireshark/blob/master/doc/hbasedecode.PNG)
+1. Select HDFSDATA2
+![dissect](https://github.com/liukeyou/hadoop-wireshark/blob/master/doc/hdfsdatadecode.PNG)
 
 ## setup
 you can download the setup file:[hadoop-wireshark(1.10.8) setup file](https://github.com/liukeyou/hadoop-wireshark/blob/master/setup/Output/hadoop-wireshark.exe?raw=true)
@@ -53,5 +55,4 @@ you can download the setup file:[hadoop-wireshark(1.10.8) setup file](https://gi
 hadoop-wireshark is published under the Apache V2.
 
 # Contact
-Email: liukeyou@gmail.com
-Weibo: [云计算技术](http://weibo.com/324426767)
+www.Xdrv.com
